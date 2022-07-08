@@ -219,7 +219,7 @@ func execFieldSelection(ctx context.Context, r *Request, s *resolvable.Schema, f
 							values = append(values, inValue.Interface())
 						}
 
-						if visitorErr := visitor.Before(ctx, directive, values); err != nil {
+						if visitorErr := visitor.Before(ctx, directive, values); visitorErr != nil {
 							err := errors.Errorf("%s", visitorErr)
 							err.Path = path.toSlice()
 							err.ResolverError = visitorErr
@@ -238,7 +238,7 @@ func execFieldSelection(ctx context.Context, r *Request, s *resolvable.Schema, f
 				for _, directive := range f.field.Directives {
 					if visitor, ok := r.Visitors[directive.Name.Name]; ok {
 						returned, visitorErr := visitor.After(ctx, directive, result.Interface())
-						if err != nil {
+						if visitorErr != nil {
 							err := errors.Errorf("%s", visitorErr)
 							err.Path = path.toSlice()
 							err.ResolverError = visitorErr
