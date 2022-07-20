@@ -223,6 +223,9 @@ func execFieldSelection(ctx context.Context, r *Request, s *resolvable.Schema, f
 							err := errors.Errorf("%s", visitorErr)
 							err.Path = path.toSlice()
 							err.ResolverError = visitorErr
+							if ex, ok := visitorErr.(extensionser); ok {
+								err.Extensions = ex.Extensions()
+							}
 							return err
 						}
 					}
@@ -242,6 +245,9 @@ func execFieldSelection(ctx context.Context, r *Request, s *resolvable.Schema, f
 							err := errors.Errorf("%s", visitorErr)
 							err.Path = path.toSlice()
 							err.ResolverError = visitorErr
+							if ex, ok := visitorErr.(extensionser); ok {
+								err.Extensions = ex.Extensions()
+							}
 							return err
 						} else {
 							result = reflect.ValueOf(returned)
