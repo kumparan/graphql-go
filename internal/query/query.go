@@ -145,9 +145,25 @@ func parseFieldDef(l *common.Lexer) *ast.Field {
 	f.Directives = common.ParseDirectives(l)
 	if l.Peek() == '{' {
 		f.SelectionSetLoc = l.Location()
-		f.SelectionSet = parseSelectionSet(l)
+		f.SelectionSet = parseFieldSelectionSet(l)
 	}
 	return f
+}
+
+// parseFieldSelectionSet is like parseSelectionSet, but accepts an empty field selection
+// set ("field {}") and treats it as no selection set at all, like graphql-go did before
+// v1.10. This keeps older clients that send "scalarField {}" working.
+func parseFieldSelectionSet(l *common.Lexer) []ast.Selection {
+	l.Descend()
+	defer l.Ascend()
+
+	var sels []ast.Selection
+	l.ConsumeToken('{')
+	for l.Peek() != '}' {
+		sels = append(sels, parseSelection(l))
+	}
+	l.ConsumeToken('}')
+	return sels
 }
 
 func parseSpread(l *common.Lexer) ast.Selection {

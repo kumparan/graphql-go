@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/graph-gophers/graphql-go/ast"
 	"github.com/graph-gophers/graphql-go/internal/common"
 )
 
@@ -32,12 +33,34 @@ func TestParseRejectsEmptyOperationSelectionSet(t *testing.T) {
 	}
 }
 
-func TestParseRejectsEmptyNestedSelectionSet(t *testing.T) {
+// An empty field selection set is accepted and parsed as no selection set (kumparan fork),
+// leaving it to validation to reject it on fields of object types.
+func TestParseEmptyFieldSelectionSetAsNone(t *testing.T) {
 	t.Parallel()
 
-	_, err := Parse("query { user {} }")
-	if err == nil {
-		t.Fatalf("expected syntax error for empty nested selection set, got nil")
+	doc, err := Parse("query { user {} }")
+	if err != nil {
+		t.Fatalf("Parse: unexpected error %v", err)
+	}
+	f, ok := doc.Operations[0].Selections[0].(*ast.Field)
+	if !ok {
+		t.Fatalf("expected *ast.Field, got %T", doc.Operations[0].Selections[0])
+	}
+	if f.SelectionSet != nil {
+		t.Errorf("expected nil selection set, got %v", f.SelectionSet)
+	}
+}
+
+func TestParseRejectsEmptyFragmentSelectionSet(t *testing.T) {
+	t.Parallel()
+
+	for _, q := range []string{
+		"query { ... on User {} }",
+		"fragment F on User {} query { ...F }",
+	} {
+		if _, err := Parse(q); err == nil {
+			t.Errorf("Parse(%q): expected syntax error, got nil", q)
+		}
 	}
 }
 
