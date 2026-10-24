@@ -64,6 +64,7 @@ func (s *Schema) subscribe(ctx context.Context, queryString string, operationNam
 		SubscribeResolverTimeout: s.subscribeResolverTimeout,
 		DisableMemoryPooling:     s.disableMemoryPooling,
 		MaxPooledBufferCapacity:  s.maxPooledBufferCapacity,
+		Visitors:                 s.visitors,
 	}
 	varTypes := make(map[string]*introspection.Type)
 	for _, v := range op.Vars {

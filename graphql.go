@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/graph-gophers/graphql-go/ast"
+	"github.com/graph-gophers/graphql-go/directives"
 	"github.com/graph-gophers/graphql-go/errors"
 	"github.com/graph-gophers/graphql-go/internal/common"
 	"github.com/graph-gophers/graphql-go/internal/exec"
@@ -196,6 +197,7 @@ type Schema struct {
 	maxPooledBufferCapacity  int
 	overlapPairLimit         int
 	validateDeprecated       bool
+	visitors                 map[string]directives.Visitor
 }
 
 // AST returns the abstract syntax tree of the GraphQL schema definition.
@@ -362,6 +364,14 @@ func SubscribeResolverTimeout(timeout time.Duration) SchemaOpt {
 	}
 }
 
+// DirectiveVisitors allows to pass custom directive visitors that will be able to handle
+// your GraphQL schema directives.
+func DirectiveVisitors(visitors map[string]directives.Visitor) SchemaOpt {
+	return func(s *Schema) {
+		s.visitors = visitors
+	}
+}
+
 // Response represents a typical response of a GraphQL server. It may be encoded to JSON directly or
 // it may be further processed to a custom response type, for example to include custom error data.
 // Errors are intentionally serialized first based on the advice in the [spec].
@@ -467,6 +477,7 @@ func (s *Schema) exec(ctx context.Context, queryString string, operationName str
 		DisableFieldSelections:  s.disableFieldSelections,
 		DisableMemoryPooling:    s.disableMemoryPooling,
 		MaxPooledBufferCapacity: s.maxPooledBufferCapacity,
+		Visitors:                s.visitors,
 	}
 	varTypes := make(map[string]*introspection.Type)
 	for _, v := range op.Vars {

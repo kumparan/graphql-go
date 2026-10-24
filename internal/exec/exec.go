@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/graph-gophers/graphql-go/ast"
+	"github.com/graph-gophers/graphql-go/directives"
 	"github.com/graph-gophers/graphql-go/errors"
 	"github.com/graph-gophers/graphql-go/internal/exec/resolvable"
 	"github.com/graph-gophers/graphql-go/internal/exec/selected"
@@ -37,6 +38,7 @@ type Request struct {
 	DisableFieldSelections   bool
 	DisableMemoryPooling     bool
 	MaxPooledBufferCapacity  int
+	Visitors                 map[string]directives.Visitor
 }
 
 func (r *Request) handlePanic(ctx context.Context) {
@@ -97,6 +99,35 @@ type fieldToExec struct {
 
 func (f *fieldToExec) resolve(ctx context.Context) (reflect.Value, error) {
 	return f.field.Resolve(ctx, f.resolver)
+}
+
+// visitorInput returns the resolver method input (context and packed arguments) passed to DirectiveVisitor.Before.
+func (f *fieldToExec) visitorInput(ctx context.Context) ([]interface{}, error) {
+	values := make([]interface{}, 0, 2)
+	if f.field.HasContext {
+		values = append(values, ctx)
+	}
+	if f.field.ArgsPacker != nil {
+		packed := f.field.PackedArgs
+		if !packed.IsValid() {
+			var err error
+			if packed, err = f.field.ArgsPacker.Pack(f.field.Args); err != nil {
+				return nil, err
+			}
+		}
+		values = append(values, packed.Interface())
+	}
+	return values, nil
+}
+
+func resolverError(resolverErr error, path *pathSegment) *errors.QueryError {
+	err := errors.Errorf("%s", resolverErr)
+	err.Path = path.toSlice()
+	err.ResolverError = resolverErr
+	if ex, ok := resolverErr.(extensionser); ok {
+		err.Extensions = ex.Extensions()
+	}
+	return err
 }
 
 func resolvedToNull(b *bytes.Buffer) bool {
@@ -271,16 +302,52 @@ func execFieldSelection(ctx context.Context, r *Request, s *resolvable.Schema, f
 		if len(f.sels) > 0 && !r.DisableFieldSelections {
 			ctx = selections.With(traceCtx, f.sels)
 		}
+		// Directive visitors only apply to method resolvers
+		hasVisitors := len(r.Visitors) > 0 && len(f.field.Directives) > 0 && f.field.UseMethodResolver()
+
+		// Before hook directive visitor
+		if hasVisitors {
+			var values []interface{}
+			for _, directive := range f.field.Directives {
+				visitor, ok := r.Visitors[directive.Name.Name]
+				if !ok {
+					continue
+				}
+				if values == nil {
+					var packErr error
+					if values, packErr = f.visitorInput(ctx); packErr != nil {
+						return resolverError(packErr, path)
+					}
+				}
+				if visitorErr := visitor.Before(ctx, directive, values); visitorErr != nil {
+					return resolverError(visitorErr, path)
+				}
+			}
+		}
+
 		var resolverErr error
 		result, resolverErr = f.resolve(ctx)
 		if resolverErr != nil {
-			err := errors.Errorf("%s", resolverErr)
-			err.Path = path.toSlice()
-			err.ResolverError = resolverErr
-			if ex, ok := resolverErr.(extensionser); ok {
-				err.Extensions = ex.Extensions()
+			return resolverError(resolverErr, path)
+		}
+
+		// After hook directive visitor (only for resolvers without an error return value)
+		if hasVisitors && !f.field.HasError {
+			for _, directive := range f.field.Directives {
+				visitor, ok := r.Visitors[directive.Name.Name]
+				if !ok {
+					continue
+				}
+				returned, visitorErr := visitor.After(ctx, directive, result.Interface())
+				if visitorErr != nil {
+					return resolverError(visitorErr, path)
+				}
+				if returned == nil {
+					result = reflect.Zero(result.Type())
+				} else {
+					result = reflect.ValueOf(returned)
+				}
 			}
-			return err
 		}
 
 		return nil
