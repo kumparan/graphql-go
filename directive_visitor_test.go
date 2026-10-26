@@ -17,12 +17,12 @@ type customDirectiveVisitor struct {
 	beforeWasCalled bool
 }
 
-func (v *customDirectiveVisitor) Before(ctx context.Context, directive *ast.Directive, input interface{}) error {
+func (v *customDirectiveVisitor) Before(ctx context.Context, directive *ast.Directive, input any) error {
 	v.beforeWasCalled = true
 	return nil
 }
 
-func (v *customDirectiveVisitor) After(ctx context.Context, directive *ast.Directive, output interface{}) (interface{}, error) {
+func (v *customDirectiveVisitor) After(ctx context.Context, directive *ast.Directive, output any) (any, error) {
 	if !v.beforeWasCalled {
 		return nil, errors.New("before directive visitor method wasn't called")
 	}
@@ -100,26 +100,26 @@ type extensionsError struct {
 
 func (e extensionsError) Error() string { return e.code + ": denied" }
 
-func (e extensionsError) Extensions() map[string]interface{} {
-	return map[string]interface{}{"code": e.code}
+func (e extensionsError) Extensions() map[string]any {
+	return map[string]any{"code": e.code}
 }
 
 type ctxKey struct{}
 
 // guardVisitor rejects the field unless the context carries a user, and records the Before input.
 type guardVisitor struct {
-	input []interface{}
+	input []any
 }
 
-func (v *guardVisitor) Before(ctx context.Context, directive *ast.Directive, input interface{}) error {
-	v.input = input.([]interface{})
+func (v *guardVisitor) Before(ctx context.Context, directive *ast.Directive, input any) error {
+	v.input = input.([]any)
 	if ctx.Value(ctxKey{}) == nil {
 		return extensionsError{code: "Unauthenticated"}
 	}
 	return nil
 }
 
-func (v *guardVisitor) After(ctx context.Context, directive *ast.Directive, output interface{}) (interface{}, error) {
+func (v *guardVisitor) After(ctx context.Context, directive *ast.Directive, output any) (any, error) {
 	return output, nil
 }
 

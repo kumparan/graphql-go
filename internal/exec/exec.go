@@ -102,8 +102,8 @@ func (f *fieldToExec) resolve(ctx context.Context) (reflect.Value, error) {
 }
 
 // visitorInput returns the resolver method input (context and packed arguments) passed to DirectiveVisitor.Before.
-func (f *fieldToExec) visitorInput(ctx context.Context) ([]interface{}, error) {
-	values := make([]interface{}, 0, 2)
+func (f *fieldToExec) visitorInput(ctx context.Context) ([]any, error) {
+	values := make([]any, 0, 2)
 	if f.field.HasContext {
 		values = append(values, ctx)
 	}
@@ -307,7 +307,7 @@ func execFieldSelection(ctx context.Context, r *Request, s *resolvable.Schema, f
 
 		// Before hook directive visitor
 		if hasVisitors {
-			var values []interface{}
+			var values []any
 			for _, directive := range f.field.Directives {
 				visitor, ok := r.Visitors[directive.Name.Name]
 				if !ok {
